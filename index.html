@@ -1,0 +1,967 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Compute Brick — Ergonomic Phone System (C)</title>
+  <meta name="description" content="Phone as a waist-mounted compute brick, controlled by ergonomic peripherals and viewed through AR glasses. Open, modular, sensory-friendly." />
+  <style>
+    :root{
+      --bg: #0b1020;
+      --panel: rgba(255,255,255,.06);
+      --panel2: rgba(255,255,255,.09);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.7);
+      --faint: rgba(255,255,255,.5);
+      --line: rgba(255,255,255,.14);
+      --accent: #8bd3ff;
+      --accent2: #f8d67b;
+      --good: #79ffa8;
+      --warn: #ffd38b;
+      --bad: #ff8ba3;
+      --shadow: 0 24px 60px rgba(0,0,0,.45);
+      --radius: 22px;
+      --radius2: 16px;
+      --max: 1100px;
+      --pad: clamp(16px, 2.6vw, 28px);
+      --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --focus: 0 0 0 3px rgba(139,211,255,.22), 0 0 0 1px rgba(139,211,255,.45) inset;
+      --speed: 220ms;
+    }
+
+    /* Sensory-friendly defaults */
+    @media (prefers-reduced-motion: reduce){
+      * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+    }
+
+    html, body { height: 100%; }
+    body{
+      margin:0;
+      font-family: var(--font);
+      background:
+        radial-gradient(900px 500px at 10% 5%, rgba(139,211,255,.15), transparent 55%),
+        radial-gradient(800px 520px at 90% 10%, rgba(248,214,123,.12), transparent 60%),
+        radial-gradient(900px 520px at 40% 90%, rgba(121,255,168,.10), transparent 60%),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      letter-spacing: .2px;
+    }
+
+    a { color: inherit; }
+    .wrap{ max-width: var(--max); margin: 0 auto; padding: var(--pad); }
+
+    /* Top bar */
+    .topbar{
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(14px);
+      background: linear-gradient(to bottom, rgba(11,16,32,.85), rgba(11,16,32,.55));
+      border-bottom: 1px solid var(--line);
+    }
+
+    .topbar-inner{
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px var(--pad);
+      max-width: var(--max);
+      margin: 0 auto;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      min-width: 210px;
+    }
+    .logo{
+      width: 38px; height: 38px;
+      border-radius: 12px;
+      background:
+        radial-gradient(16px 16px at 30% 30%, rgba(255,255,255,.35), transparent 55%),
+        linear-gradient(135deg, rgba(139,211,255,.9), rgba(248,214,123,.85));
+      box-shadow: 0 14px 30px rgba(0,0,0,.35);
+      border: 1px solid rgba(255,255,255,.18);
+    }
+    .brand h1{
+      font-size: 14px;
+      margin: 0;
+      line-height: 1.15;
+      letter-spacing: .35px;
+    }
+    .brand small{
+      display:block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: .2px;
+    }
+
+    nav{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+      align-items:center;
+    }
+    nav a{
+      text-decoration:none;
+      font-size: 13px;
+      color: var(--muted);
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      transition: background var(--speed), border-color var(--speed), color var(--speed);
+    }
+    nav a:hover{ background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.10); color: var(--text); }
+    nav a:focus-visible{ outline: none; box-shadow: var(--focus); }
+
+    .cta{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+    }
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      text-decoration:none;
+      font-size: 13px;
+      cursor:pointer;
+      transition: transform var(--speed), background var(--speed), border-color var(--speed);
+      user-select: none;
+      white-space: nowrap;
+    }
+    .btn:hover{ background: rgba(255,255,255,.09); border-color: rgba(255,255,255,.22); }
+    .btn:active{ transform: translateY(1px); }
+    .btn:focus-visible{ outline: none; box-shadow: var(--focus); }
+
+    .btn.primary{
+      background: linear-gradient(135deg, rgba(139,211,255,.28), rgba(248,214,123,.20));
+      border-color: rgba(139,211,255,.35);
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.05);
+      color: var(--muted);
+      font-size: 12px;
+      width: fit-content;
+    }
+    .dot{
+      width: 8px; height: 8px;
+      border-radius: 99px;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px rgba(139,211,255,.12);
+    }
+
+    /* Hero */
+    header.hero{
+      padding: 34px 0 18px;
+    }
+    .hero-grid{
+      display:grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: clamp(14px, 3vw, 28px);
+      align-items: start;
+    }
+    @media (max-width: 980px){
+      .hero-grid{ grid-template-columns: 1fr; }
+      .brand{ min-width: auto; }
+    }
+
+    .hero h2{
+      font-size: clamp(28px, 4vw, 46px);
+      margin: 12px 0 12px;
+      line-height: 1.08;
+      letter-spacing: .4px;
+    }
+    .hero p{
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: clamp(14px, 1.65vw, 17px);
+      max-width: 64ch;
+    }
+
+    .hero-actions{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items:center;
+      margin-top: 14px;
+    }
+
+    /* Cards */
+    .panel{
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .panel.pad{ padding: 18px; }
+    .panel.soft{ background: rgba(255,255,255,.05); box-shadow: 0 18px 50px rgba(0,0,0,.35); }
+
+    .grid{
+      display:grid;
+      gap: 12px;
+    }
+    .grid.cols-2{ grid-template-columns: 1fr 1fr; }
+    .grid.cols-3{ grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 900px){
+      .grid.cols-2, .grid.cols-3{ grid-template-columns: 1fr; }
+    }
+
+    section{
+      padding: 14px 0;
+    }
+    section h3{
+      margin: 0 0 10px;
+      font-size: 18px;
+      letter-spacing: .25px;
+    }
+    section .lead{
+      margin: 0 0 14px;
+      color: var(--muted);
+      max-width: 80ch;
+      font-size: 14px;
+    }
+
+    .card{
+      border-radius: var(--radius2);
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.05);
+      padding: 14px;
+      position: relative;
+      overflow: hidden;
+      transition: transform var(--speed), border-color var(--speed), background var(--speed);
+    }
+    .card:hover{
+      transform: translateY(-2px);
+      border-color: rgba(255,255,255,.22);
+      background: rgba(255,255,255,.065);
+    }
+    .card h4{
+      margin: 2px 0 6px;
+      font-size: 14px;
+      letter-spacing: .2px;
+    }
+    .card p{
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .tag{
+      font-size: 11px;
+      color: rgba(255,255,255,.72);
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.04);
+      padding: 4px 8px;
+      border-radius: 999px;
+      display:inline-flex;
+      gap: 6px;
+      align-items:center;
+      margin-bottom: 10px;
+      width: fit-content;
+    }
+    .tag b{ font-weight: 600; color: var(--text); }
+    .tag .sw{
+      width: 8px; height: 8px; border-radius: 99px; background: var(--accent2);
+      box-shadow: 0 0 0 3px rgba(248,214,123,.12);
+    }
+
+    /* Diagram */
+    .diagram{
+      padding: 14px;
+    }
+    svg{ width: 100%; height: auto; display:block; }
+    .caption{
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    /* Accordion */
+    details{
+      border-radius: var(--radius2);
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.05);
+      padding: 12px 14px;
+    }
+    details + details{ margin-top: 10px; }
+    summary{
+      cursor: pointer;
+      list-style: none;
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 12px;
+      user-select: none;
+      color: var(--text);
+      font-weight: 600;
+      font-size: 13px;
+    }
+    summary::-webkit-details-marker{ display:none; }
+    .chev{
+      width: 28px; height: 28px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.14);
+      display:grid;
+      place-items:center;
+      color: var(--muted);
+      background: rgba(255,255,255,.04);
+      transition: transform var(--speed), color var(--speed), background var(--speed);
+      flex: 0 0 auto;
+    }
+    details[open] .chev{ transform: rotate(90deg); color: var(--text); background: rgba(255,255,255,.07); }
+    .details-body{
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .details-body ul{ margin: 8px 0 0 18px; padding: 0; }
+    .details-body li{ margin: 6px 0; }
+
+    /* Spec table-ish */
+    .spec{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 760px){ .spec{ grid-template-columns: 1fr; } }
+    .kv{
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 16px;
+      padding: 12px 12px;
+      background: rgba(255,255,255,.05);
+    }
+    .kv .k{
+      font-size: 11px;
+      color: var(--faint);
+      letter-spacing: .35px;
+      text-transform: uppercase;
+    }
+    .kv .v{
+      margin-top: 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    code, pre{
+      font-family: var(--mono);
+    }
+    pre{
+      margin: 10px 0 0;
+      padding: 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.28);
+      overflow:auto;
+      color: rgba(255,255,255,.86);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    footer{
+      padding: 26px 0 34px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .hr{
+      height: 1px;
+      background: rgba(255,255,255,.12);
+      margin: 14px 0;
+    }
+
+    /* Tiny toast */
+    .toast{
+      position: fixed;
+      left: 50%;
+      bottom: 16px;
+      transform: translateX(-50%);
+      background: rgba(11,16,32,.85);
+      border: 1px solid rgba(255,255,255,.18);
+      padding: 10px 12px;
+      border-radius: 14px;
+      color: var(--text);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 18px 55px rgba(0,0,0,.4);
+      display:none;
+      max-width: min(680px, calc(100vw - 24px));
+    }
+    .toast.show{ display:block; }
+    .toast small{ color: var(--muted); }
+  </style>
+</head>
+
+<body>
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="brand" aria-label="Brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>Compute Brick</h1>
+          <small>Phone on waist • AR display • ergonomic peripherals</small>
+        </div>
+      </div>
+
+      <nav aria-label="Primary">
+        <a href="#vision">Vision</a>
+        <a href="#system">System</a>
+        <a href="#hardware">Hardware</a>
+        <a href="#mvp">MVP</a>
+        <a href="#open">Open</a>
+      </nav>
+
+      <div class="cta">
+        <button class="btn" id="copyPitch" type="button" title="Copy 1-paragraph pitch">Copy pitch</button>
+        <a class="btn primary" href="#mvp" title="Jump to MVP">Build path →</a>
+      </div>
+    </div>
+  </div>
+
+  <main class="wrap">
+    <header class="hero">
+      <div class="hero-grid">
+        <div>
+          <div class="pill"><span class="dot"></span> Option C: abstract the slab into a compute brick</div>
+          <h2>Stop holding the phone.<br/>Wear the compute.</h2>
+          <p>
+            Modern phones are amazing computers with terrible ergonomics. The <b>Compute Brick</b> system keeps the phone
+            on your waist (or docked), then uses <b>ergonomic peripherals</b> for input and <b>AR glasses</b> for display.
+            The result is calmer posture, less thumb strain, and a modular path to “everywhere computing.”
+          </p>
+
+          <div class="hero-actions">
+            <a class="btn primary" href="#system">See the architecture</a>
+            <a class="btn" href="#hardware">Peripherals & cases</a>
+            <a class="btn" href="#mvp">MVP roadmap</a>
+            <a class="btn" href="#open">Open-source approach</a>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="spec" aria-label="Design goals">
+            <div class="kv">
+              <div class="k">Ergonomics</div>
+              <div class="v">Neutral wrists, reduced pinch grip, minimized neck flexion, “hands-resting” interaction.</div>
+            </div>
+            <div class="kv">
+              <div class="k">Sensory-friendly UI</div>
+              <div class="v">Dark-mode-first, high contrast without glare, minimal motion, gentle night palette.</div>
+            </div>
+            <div class="kv">
+              <div class="k">Modular hardware</div>
+              <div class="v">Case add-ons + separate peripherals; USB-C and/or Bluetooth; open remapping.</div>
+            </div>
+            <div class="kv">
+              <div class="k">Open compatibility</div>
+              <div class="v">Works with “normal phones” first. Long-term: open compute brick + TommyOS-style UI layer.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel pad diagram" aria-label="System diagram">
+          <h3 style="margin:0 0 10px;">System at a glance</h3>
+
+          <!-- Simple architecture diagram -->
+          <svg viewBox="0 0 820 520" role="img" aria-label="Compute Brick system diagram">
+            <defs>
+              <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="rgba(139,211,255,.85)"/>
+                <stop offset="1" stop-color="rgba(248,214,123,.75)"/>
+              </linearGradient>
+              <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+                <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="rgba(0,0,0,.45)"/>
+              </filter>
+            </defs>
+
+            <!-- background panel -->
+            <rect x="10" y="10" width="800" height="500" rx="24" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.12)"/>
+
+            <!-- Phone / brick -->
+            <rect x="70" y="200" width="190" height="250" rx="28" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.16)" filter="url(#shadow)"/>
+            <rect x="95" y="225" width="140" height="160" rx="18" fill="rgba(0,0,0,.28)" stroke="rgba(255,255,255,.10)"/>
+            <text x="165" y="415" text-anchor="middle" fill="rgba(255,255,255,.86)" font-size="16" font-family="ui-sans-serif,system-ui">Compute Brick</text>
+            <text x="165" y="440" text-anchor="middle" fill="rgba(255,255,255,.65)" font-size="12" font-family="ui-sans-serif,system-ui">waist-mounted</text>
+
+            <!-- AR glasses -->
+            <rect x="540" y="70" width="230" height="120" rx="28" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.16)" filter="url(#shadow)"/>
+            <path d="M585 120 C610 90, 700 90, 725 120" fill="none" stroke="url(#g1)" stroke-width="10" stroke-linecap="round"/>
+            <path d="M585 120 C610 150, 700 150, 725 120" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="6" stroke-linecap="round"/>
+            <text x="655" y="175" text-anchor="middle" fill="rgba(255,255,255,.86)" font-size="16" font-family="ui-sans-serif,system-ui">AR Display</text>
+            <text x="655" y="198" text-anchor="middle" fill="rgba(255,255,255,.65)" font-size="12" font-family="ui-sans-serif,system-ui">screen moves off the slab</text>
+
+            <!-- Split keyboard -->
+            <rect x="360" y="290" width="180" height="90" rx="22" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.16)" filter="url(#shadow)"/>
+            <rect x="565" y="290" width="180" height="90" rx="22" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.16)" filter="url(#shadow)"/>
+            <text x="552" y="405" text-anchor="middle" fill="rgba(255,255,255,.86)" font-size="16" font-family="ui-sans-serif,system-ui">Split Input</text>
+            <text x="552" y="428" text-anchor="middle" fill="rgba(255,255,255,.65)" font-size="12" font-family="ui-sans-serif,system-ui">lap / wearable keyboard</text>
+
+            <!-- Scroll / ring -->
+            <circle cx="430" cy="120" r="46" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.16)" filter="url(#shadow)"/>
+            <circle cx="430" cy="120" r="22" fill="rgba(0,0,0,.25)" stroke="rgba(255,255,255,.10)"/>
+            <text x="430" y="185" text-anchor="middle" fill="rgba(255,255,255,.86)" font-size="14" font-family="ui-sans-serif,system-ui">Scroller / Ring</text>
+
+            <!-- Links -->
+            <path d="M260 260 C320 250, 410 170, 505 140" fill="none" stroke="rgba(139,211,255,.55)" stroke-width="4" stroke-linecap="round" stroke-dasharray="6 10"/>
+            <path d="M260 330 C340 340, 420 340, 360 330" fill="none" stroke="rgba(248,214,123,.5)" stroke-width="4" stroke-linecap="round" stroke-dasharray="6 10"/>
+            <path d="M260 380 C340 420, 520 420, 660 380" fill="none" stroke="rgba(121,255,168,.45)" stroke-width="4" stroke-linecap="round" stroke-dasharray="6 10"/>
+
+            <text x="375" y="245" fill="rgba(255,255,255,.62)" font-size="12" font-family="ui-sans-serif,system-ui">USB-C / BT</text>
+            <text x="315" y="356" fill="rgba(255,255,255,.62)" font-size="12" font-family="ui-sans-serif,system-ui">input events</text>
+            <text x="420" y="458" fill="rgba(255,255,255,.62)" font-size="12" font-family="ui-sans-serif,system-ui">video out / casting</text>
+          </svg>
+
+          <div class="caption">
+            The phone becomes a docked compute module. Input moves to calm, ergonomic peripherals. Display moves to glasses or external screens.
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section id="vision">
+      <h3>Vision</h3>
+      <p class="lead">
+        We treat the smartphone like a powerful SBC: a compute core that should be worn, docked, and controlled—rather than pinched, craned over, and thumb-smashed.
+      </p>
+
+      <div class="grid cols-3">
+        <div class="card">
+          <div class="tag"><span class="sw"></span><b>Posture</b> first</div>
+          <h4>Neck neutral</h4>
+          <p>Keep the “screen” up (glasses/external) while the compute stays down (waist/dock).</p>
+        </div>
+        <div class="card">
+          <div class="tag"><span class="sw"></span><b>Hands</b> relaxed</div>
+          <h4>Zero pinch grip</h4>
+          <p>Replace slab-holding with lap split keys, ring inputs, and scroll wheels.</p>
+        </div>
+        <div class="card">
+          <div class="tag"><span class="sw"></span><b>Calm</b> by default</div>
+          <h4>Sensory-friendly</h4>
+          <p>Dark-mode-first UI, minimal motion, optional “low stimulation” interaction patterns.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="system">
+      <h3>System architecture</h3>
+      <p class="lead">
+        The Compute Brick is a modular stack. You can adopt one layer at a time without changing your phone.
+      </p>
+
+      <div class="grid cols-2">
+        <div class="panel pad soft">
+          <h3 style="margin-top:0;">Layers</h3>
+          <details open>
+            <summary>
+              1) Compute layer (Phone / Brick)
+              <span class="chev" aria-hidden="true">›</span>
+            </summary>
+            <div class="details-body">
+              The phone becomes a docked compute core:
+              <ul>
+                <li>Belt clip / cross-body pouch / dock station</li>
+                <li>Optional passive cooling + cable strain relief</li>
+                <li>USB-C hub support: video out, power, peripherals</li>
+              </ul>
+            </div>
+          </details>
+
+          <details>
+            <summary>
+              2) Display layer (AR / External)
+              <span class="chev" aria-hidden="true">›</span>
+            </summary>
+            <div class="details-body">
+              Move the screen off your hands:
+              <ul>
+                <li>AR glasses for personal HUD</li>
+                <li>Projector/monitor for work + AV control</li>
+                <li>Dark-mode-first UI designed for low glare</li>
+              </ul>
+            </div>
+          </details>
+
+          <details>
+            <summary>
+              3) Input layer (Ergo peripherals)
+              <span class="chev" aria-hidden="true">›</span>
+            </summary>
+            <div class="details-body">
+              Inputs that match anatomy:
+              <ul>
+                <li>Lap split keyboard (thigh-resting halves)</li>
+                <li>Scroller wheel modules (index finger / edge wheel)</li>
+                <li>Ring / thumb controller for “mouse-like” control</li>
+                <li>Back paddles for quick actions</li>
+              </ul>
+            </div>
+          </details>
+
+          <details>
+            <summary>
+              4) Software layer (UI + remapping)
+              <span class="chev" aria-hidden="true">›</span>
+            </summary>
+            <div class="details-body">
+              A thin software layer ties it together:
+              <ul>
+                <li>Key remapping + macros</li>
+                <li>“Low stimulation” modes</li>
+                <li>Web-first control surfaces (TommyOS-ish)</li>
+              </ul>
+            </div>
+          </details>
+        </div>
+
+        <div class="panel pad soft">
+          <h3 style="margin-top:0;">Why this wins</h3>
+          <div class="grid" style="gap:10px;">
+            <div class="kv">
+              <div class="k">Today</div>
+              <div class="v">Hold slab → neck down → thumb swipes → constant micro-tension.</div>
+            </div>
+            <div class="kv">
+              <div class="k">Compute Brick</div>
+              <div class="v">Wear compute → eyes up → hands resting → ergonomic input → calmer system.</div>
+            </div>
+            <div class="kv">
+              <div class="k">Compatibility</div>
+              <div class="v">Works with existing phones first; long-term can evolve into an open compute module.</div>
+            </div>
+            <div class="kv">
+              <div class="k">AV / stagehand use</div>
+              <div class="v">Perfect for “laptop + interfaces” workflows—except your phone becomes the brain.</div>
+            </div>
+          </div>
+
+          <pre aria-label="One sentence pitch">
+Compute Brick: keep the phone at your waist, view via AR (or external), and control everything with ergonomic peripherals.
+          </pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="hardware">
+      <h3>Hardware concepts</h3>
+      <p class="lead">
+        Start with accessories that work today: ergonomic cases, scrollers, and split inputs. Then converge toward a fully open, modular compute brick.
+      </p>
+
+      <div class="grid cols-3">
+        <div class="card">
+          <div class="tag"><span class="sw"></span><b>Case</b> geometry</div>
+          <h4>Round-back “palm swell” case</h4>
+          <p>Convex back + finger grooves + breathable grip. Reduces pinch grip and fingertip tension.</p>
+        </div>
+        <div class="card">
+          <div class="tag"><span class="sw"></span><b>Scroll</b> module</div>
+          <h4>Side wheel / edge dial</h4>
+          <p>Index-finger scrolling like a mouse wheel—no screen swiping needed. Great for reading and editing.</p>
+        </div>
+        <div class="card">
+          <div class="tag"><span class="sw"></span><b>Quick</b> actions</div>
+          <h4>Back paddles</h4>
+          <p>Two “middle finger” buttons for copy/paste, window switch, push-to-talk, AI key, etc.</p>
+        </div>
+
+        <div class="card">
+          <div class="tag"><span class="sw"></span><b>Input</b> end-game</div>
+          <h4>Lap split ergo keyboard</h4>
+          <p>Two halves resting on thighs for neutral wrists and shoulders. Optional strap/magnet mounts.</p>
+        </div>
+        <div class="card">
+          <div class="tag"><span class="sw"></span><b>Pointer</b> control</div>
+          <h4>Ring / thumb controller</h4>
+          <p>Lightweight pointer + clicks without a full mouse. Ideal for AR navigation.</p>
+        </div>
+        <div class="card">
+          <div class="tag"><span class="sw"></span><b>Dock</b> layer</div>
+          <h4>Waist dock + USB-C hub</h4>
+          <p>Cable management, cooling, quick release. Supports power, video out, and accessories.</p>
+        </div>
+      </div>
+
+      <div class="panel pad soft" style="margin-top:12px;">
+        <h3 style="margin-top:0;">Material direction</h3>
+        <p class="lead" style="margin-bottom:10px;">
+          For a “natural computing” variant: prioritize tactile comfort, breathability, and repairability.
+        </p>
+        <div class="grid cols-3">
+          <div class="kv">
+            <div class="k">Grip materials</div>
+            <div class="v">Textured biopolymer, cork insert, or hemp composite shell.</div>
+          </div>
+          <div class="kv">
+            <div class="k">Lining</div>
+            <div class="v">Linen/merino sleeve options for the waist dock (soft + breathable).</div>
+          </div>
+          <div class="kv">
+            <div class="k">Modularity</div>
+            <div class="v">Replaceable scroller/paddle modules, open fasteners, minimal glue.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="mvp">
+      <h3>MVP roadmap (buildable now)</h3>
+      <p class="lead">
+        The fastest path is: <b>ergonomic case + scroller + simple remapping</b>. Then: split keyboard. Then: AR.
+      </p>
+
+      <div class="grid cols-2">
+        <div class="panel pad soft">
+          <h3 style="margin-top:0;">Phase 1 — “Grip & Scroll” (2–4 weeks)</h3>
+          <details open>
+            <summary>Deliverable: a universal ergonomic case concept + prototype spec<span class="chev" aria-hidden="true">›</span></summary>
+            <div class="details-body">
+              <ul>
+                <li>Round-back geometry (palm swell) + strap/handle options</li>
+                <li>Edge dial / scroll wheel concept (detachable)</li>
+                <li>Button mapping list: scroll, back, home, copy, AI key</li>
+                <li>Simple landing page + demo video script</li>
+              </ul>
+            </div>
+          </details>
+          <details>
+            <summary>Testing checklist<span class="chev" aria-hidden="true">›</span></summary>
+            <div class="details-body">
+              <ul>
+                <li>One-hand relaxed hold for 10 minutes (no fingertip pain)</li>
+                <li>Scrolling without screen contact</li>
+                <li>Works with phone in pocket/waist clip (quick access)</li>
+              </ul>
+            </div>
+          </details>
+        </div>
+
+        <div class="panel pad soft">
+          <h3 style="margin-top:0;">Phase 2 — “Lap Split Input” (4–8 weeks)</h3>
+          <details open>
+            <summary>Deliverable: split keyboard concept + mapping profile<span class="chev" aria-hidden="true">›</span></summary>
+            <div class="details-body">
+              <ul>
+                <li>Two halves sized for thighs; optional strap/magnet positioning</li>
+                <li>Chord layer for one-hand navigation (optional)</li>
+                <li>Profiles: writing, coding, AV control</li>
+              </ul>
+            </div>
+          </details>
+          <details>
+            <summary>Why this matters<span class="chev" aria-hidden="true">›</span></summary>
+            <div class="details-body">
+              <ul>
+                <li>Eliminates “thumb-only computing”</li>
+                <li>Lets the phone stay docked while you work</li>
+                <li>Pairs perfectly with AR/external display</li>
+              </ul>
+            </div>
+          </details>
+        </div>
+
+        <div class="panel pad soft">
+          <h3 style="margin-top:0;">Phase 3 — “AR Display Layer” (8–12 weeks)</h3>
+          <details open>
+            <summary>Deliverable: minimal HUD UI + browser-first control surfaces<span class="chev" aria-hidden="true">›</span></summary>
+            <div class="details-body">
+              <ul>
+                <li>Dark-mode-first, low motion UI shell</li>
+                <li>Large text defaults + “reduce motion” toggle</li>
+                <li>Web apps for messages, notes, AV control, tasks</li>
+              </ul>
+            </div>
+          </details>
+        </div>
+
+        <div class="panel pad soft">
+          <h3 style="margin-top:0;">Phase 4 — Open Compute Brick (long-term)</h3>
+          <details open>
+            <summary>Deliverable: open module roadmap<span class="chev" aria-hidden="true">›</span></summary>
+            <div class="details-body">
+              <ul>
+                <li>Phone-like compute module with open IO + easy servicing</li>
+                <li>Battery + thermal + IO as replaceable submodules</li>
+                <li>TommyOS interface + open dev stack</li>
+              </ul>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div class="panel pad" style="margin-top:12px;">
+        <h3 style="margin-top:0;">Action list (copy/paste)</h3>
+        <pre id="actionList">MVP: Compute Brick (Option C)
+- Write a 1-page spec for the round-back ergonomic case (geometry + strap options)
+- Define the scroller module: side wheel + 2 back paddles + USB-C/Bluetooth versions
+- Make a simple keymap: scroll / back / home / copy / paste / window switch / AI key
+- Prototype physically (foam/3D print) and run 3 comfort tests (10 min hold, 30 min read, 1 hr work)
+- Build a demo web page showing the system layers + a 45 sec pitch script
+Next:
+- Split lap keyboard concept + mapping profile for AV control
+- AR layer UI: dark-mode-first HUD + minimal windowing</pre>
+        <div class="hero-actions" style="margin-top:12px;">
+          <button class="btn primary" id="copyActions" type="button">Copy action list</button>
+          <button class="btn" id="toggleOpenAll" type="button">Toggle all accordions</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="open">
+      <h3>Open-source & product strategy</h3>
+      <p class="lead">
+        Start with accessories (lowest friction), publish specs openly, then evolve toward a full “open computing” stack.
+      </p>
+
+      <div class="grid cols-2">
+        <div class="card">
+          <div class="tag"><span class="sw"></span><b>Open</b> spec</div>
+          <h4>Publish the interface, not just the object</h4>
+          <p>Define the “inputs” (dial/paddles/keyboard) as HID events + open mappings so anyone can build compatible modules.</p>
+        </div>
+        <div class="card">
+          <div class="tag"><span class="sw"></span><b>Business</b> path</div>
+          <h4>Sell the best hardware, keep the system open</h4>
+          <p>Community can fork and improve. You win by shipping ergonomic quality + documentation + support.</p>
+        </div>
+        <div class="card">
+          <div class="tag"><span class="sw"></span><b>Developer</b> hook</div>
+          <h4>“Phone as SBC” toolkit</h4>
+          <p>Provide a web-first UI shell + templates for control surfaces (AV, notes, tasks, comms).</p>
+        </div>
+        <div class="card">
+          <div class="tag"><span class="sw"></span><b>Sensory</b> default</div>
+          <h4>Low stimulation mode</h4>
+          <p>Minimal animations, warm/dim presets, big typography, and a “calm” interaction model designed in from day one.</p>
+        </div>
+      </div>
+
+      <div class="panel pad soft" style="margin-top:12px;">
+        <h3 style="margin-top:0;">One-paragraph pitch</h3>
+        <p id="pitch" style="margin:0; color: var(--muted); font-size: 14px;">
+          Compute Brick turns your phone into a waist-mounted compute module instead of a hand-held slab.
+          You view through AR glasses or an external display and control everything with ergonomic peripherals:
+          a lap split keyboard, a scroll wheel module, and back paddles for quick actions. The goal is calmer posture,
+          less thumb strain, and a modular open standard that works with existing phones today—and evolves into an
+          open compute brick tomorrow.
+        </p>
+      </div>
+    </section>
+
+    <footer>
+      <div class="hr"></div>
+      <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between;">
+        <div>
+          <b style="color:var(--text);">Compute Brick</b>
+          <span style="color:var(--muted);"> — ergonomic, modular, open.</span>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button class="btn" id="scrollTop" type="button">Back to top ↑</button>
+          <button class="btn" id="printPage" type="button">Print / PDF</button>
+        </div>
+      </div>
+      <div style="margin-top:10px; color: var(--faint);">
+        Tip: Replace the brand name, add your 3dvr.tech links, and drop in sketches/renders once you have them.
+      </div>
+    </footer>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const toastEl = document.getElementById('toast');
+    let toastTimer = null;
+
+    function toast(msg){
+      clearTimeout(toastTimer);
+      toastEl.innerHTML = msg;
+      toastEl.classList.add('show');
+      toastTimer = setTimeout(()=> toastEl.classList.remove('show'), 2400);
+    }
+
+    async function copyText(text){
+      try{
+        await navigator.clipboard.writeText(text);
+        toast('Copied to clipboard <small>(paste anywhere)</small>');
+      }catch(e){
+        // Fallback
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        toast('Copied (fallback) <small>(paste anywhere)</small>');
+      }
+    }
+
+    document.getElementById('copyPitch').addEventListener('click', () => {
+      const text = document.getElementById('pitch').innerText.trim();
+      copyText(text);
+    });
+
+    document.getElementById('copyActions').addEventListener('click', () => {
+      const text = document.getElementById('actionList').innerText.trim();
+      copyText(text);
+    });
+
+    document.getElementById('scrollTop').addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    document.getElementById('printPage').addEventListener('click', () => {
+      window.print();
+    });
+
+    // Toggle all accordions (details)
+    let allOpen = false;
+    document.getElementById('toggleOpenAll').addEventListener('click', () => {
+      const details = Array.from(document.querySelectorAll('details'));
+      allOpen = !allOpen;
+      details.forEach(d => d.open = allOpen);
+      toast(allOpen ? 'Expanded all sections' : 'Collapsed all sections');
+    });
+
+    // Highlight active nav section (gentle, no animation)
+    const navLinks = Array.from(document.querySelectorAll('nav a'));
+    const sections = navLinks
+      .map(a => document.querySelector(a.getAttribute('href')))
+      .filter(Boolean);
+
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if(entry.isIntersecting){
+          navLinks.forEach(a => a.style.background = 'transparent');
+          const id = '#' + entry.target.id;
+          const active = navLinks.find(a => a.getAttribute('href') === id);
+          if(active){
+            active.style.background = 'rgba(255,255,255,.06)';
+            active.style.borderColor = 'rgba(255,255,255,.12)';
+            active.style.color = 'rgba(255,255,255,.92)';
+          }
+        }
+      });
+    }, { rootMargin: '-60% 0px -35% 0px', threshold: 0.01 });
+
+    sections.forEach(s => obs.observe(s));
+  </script>
+</body>
+</html>
